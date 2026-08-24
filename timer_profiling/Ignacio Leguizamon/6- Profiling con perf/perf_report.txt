@@ -1,0 +1,30 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 299  of event 'task-clock:ppp'
+# Event count (approx.): 74750000
+#
+# Overhead  Command     Shared Object         Symbol                            
+# ........  ..........  ....................  ..................................
+#
+    74.92%  test_gprof  test_gprof            [.] func2
+    13.04%  test_gprof  test_gprof            [.] func1
+     4.35%  test_gprof  test_gprof            [.] main
+     1.34%  test_gprof  [kernel.kallsyms]     [k] finish_task_switch.isra.0
+     1.34%  test_gprof  [kernel.kallsyms]     [k] irqentry_exit
+     1.00%  test_gprof  [kernel.kallsyms]     [k] _raw_spin_unlock_irqrestore
+     1.00%  test_gprof  ld-linux-x86-64.so.2  [.] intel_check_word.constprop.0
+     0.67%  test_gprof  [kernel.kallsyms]     [k] preempt_schedule_irq
+     0.67%  test_gprof  [vboxguest]           [k] 0x0000000000004048
+     0.33%  test_gprof  [kernel.kallsyms]     [k] handle_softirqs
+     0.33%  test_gprof  [kernel.kallsyms]     [k] rcu_core
+     0.33%  test_gprof  [kernel.kallsyms]     [k] set_pte_range
+     0.33%  test_gprof  ld-linux-x86-64.so.2  [.] get_common_indices.constprop.0
+     0.33%  test_gprof  ld-linux-x86-64.so.2  [.] handle_intel.constprop.0
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#
