@@ -1,0 +1,5 @@
+Comparando los dos, se ve una diferencia grande: gprof solo alcanzo a tomar una muestra en toda la ejecucion (el programa corrio en 0,01s), asi que le termino asignando el 100% del tiempo a func2 por "casualidad". Con perf sucedió otra cosa: al tomar 299 muestras, el resultado fué mucho mas repartido y creible - func2 con 74,92%, func1 con 13,04%, y el resto en main y en cosas del sistema operativo (cambios de contexto, interrupciones, hasta el driver de VirtualBox por correr en una VM).
+
+Algo llamativo: new_func1 no aparece en el reporte de perf. Lo mas probable es que el compilador la haya "inlineado" dentro de func1, ya que es chica y se llama una sola vez.
+
+En conclusion: gprof necesita recompilar el codigo y en programas muy cortos pierde precision (como paso aca), mientras que perf no necesita tocar el binario y da un perfil bastante mas confiable porque muestrea muchas mas veces - aunque de paso mezcla actividad del sistema que gprof ni muestra.
