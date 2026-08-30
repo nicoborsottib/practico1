@@ -1,0 +1,116 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 85K of event 'cpu/cycles/P'
+# Event count (approx.): 91525685776
+#
+# Overhead  Command     Shared Object      Symbol                                   
+# ........  ..........  .................  .........................................
+#
+    33.66%  test_gprof  test_gprof         [.] func1
+    33.08%  test_gprof  test_gprof         [.] new_func1
+    32.98%  test_gprof  test_gprof         [.] func2
+     0.13%  test_gprof  test_gprof         [.] main
+     0.01%  test_gprof  [kernel.kallsyms]  [k] read_tsc
+     0.01%  test_gprof  [kernel.kallsyms]  [k] srso_return_thunk
+     0.00%  test_gprof  [kernel.kallsyms]  [k] srso_safe_ret
+     0.00%  test_gprof  [kernel.kallsyms]  [k] __update_load_avg_cfs_rq
+     0.00%  test_gprof  [kernel.kallsyms]  [k] update_curr
+     0.00%  test_gprof  [kernel.kallsyms]  [k] __calc_delta.constprop.0
+     0.00%  test_gprof  [kernel.kallsyms]  [k] timekeeping_update_from_shadow
+     0.00%  test_gprof  [kernel.kallsyms]  [k] native_read_msr
+     0.00%  test_gprof  [kernel.kallsyms]  [k] native_sched_clock
+     0.00%  test_gprof  [kernel.kallsyms]  [k] nohz_balancer_kick
+     0.00%  test_gprof  [kernel.kallsyms]  [k] native_irq_return_iret
+     0.00%  test_gprof  [kernel.kallsyms]  [k] sched_tick
+     0.00%  test_gprof  [kernel.kallsyms]  [k] __raw_spin_lock_irqsave
+     0.00%  test_gprof  [kernel.kallsyms]  [k] asm_sysvec_apic_timer_interrupt
+     0.00%  test_gprof  [kernel.kallsyms]  [k] rb_next
+     0.00%  test_gprof  [kernel.kallsyms]  [k] perf_event_idx_default
+     0.00%  test_gprof  [kernel.kallsyms]  [k] set_current_blocked
+     0.00%  test_gprof  [kernel.kallsyms]  [k] arch_perf_update_userpage
+     0.00%  test_gprof  libc.so.6          [.] 0x0000000000045cb0
+     0.00%  test_gprof  [kernel.kallsyms]  [k] pick_task_dl
+     0.00%  test_gprof  [kernel.kallsyms]  [k] check_cpu_stall
+     0.00%  test_gprof  [kernel.kallsyms]  [k] rcu_note_context_switch
+     0.00%  test_gprof  [kernel.kallsyms]  [k] arch_scale_cpu_capacity
+     0.00%  test_gprof  [kernel.kallsyms]  [k] ktime_get_update_offsets_now
+     0.00%  test_gprof  [kernel.kallsyms]  [k] perf_event_groups_next
+     0.00%  test_gprof  [kernel.kallsyms]  [k] __x86_indirect_thunk_rax
+     0.00%  test_gprof  [kernel.kallsyms]  [k] update_fast_timekeeper
+     0.00%  test_gprof  [kernel.kallsyms]  [k] __update_load_avg_se
+     0.00%  test_gprof  [kernel.kallsyms]  [k] update_cfs_rq_load_avg
+     0.00%  test_gprof  [kernel.kallsyms]  [k] tmigr_handle_remote_up
+     0.00%  test_gprof  [kernel.kallsyms]  [k] local_clock
+     0.00%  test_gprof  [kernel.kallsyms]  [k] perf_event_update_userpage
+     0.00%  test_gprof  [kernel.kallsyms]  [k] account_process_tick
+     0.00%  test_gprof  [kernel.kallsyms]  [k] psi_group_change
+     0.00%  test_gprof  [kernel.kallsyms]  [k] __get_user_nocheck_8
+     0.00%  test_gprof  [kernel.kallsyms]  [k] blkcg_maybe_throttle_current
+     0.00%  test_gprof  [kernel.kallsyms]  [k] sched_balance_domains
+     0.00%  test_gprof  [kernel.kallsyms]  [k] arch_scale_freq_tick
+     0.00%  test_gprof  [kernel.kallsyms]  [k] lapic_next_event
+     0.00%  test_gprof  [kernel.kallsyms]  [k] __x64_sys_rt_sigreturn
+     0.00%  test_gprof  [kernel.kallsyms]  [k] sched_clock_cpu
+     0.00%  test_gprof  [kernel.kallsyms]  [k] reweight_entity
+     0.00%  test_gprof  [kernel.kallsyms]  [k] dec_rlimit_put_ucounts
+     0.00%  test_gprof  [kernel.kallsyms]  [k] _raw_spin_lock_irqsave
+     0.00%  test_gprof  [kernel.kallsyms]  [k] place_entity
+     0.00%  test_gprof  [kernel.kallsyms]  [k] update_deadline
+     0.00%  test_gprof  [kernel.kallsyms]  [k] raw_spin_rq_lock_nested
+     0.00%  test_gprof  [kernel.kallsyms]  [k] restore_fpregs_from_fpstate
+     0.00%  test_gprof  [kernel.kallsyms]  [k] update_se
+     0.00%  test_gprof  [kernel.kallsyms]  [k] cpuacct_charge
+     0.00%  test_gprof  [kernel.kallsyms]  [k] account_user_time
+     0.00%  test_gprof  [kernel.kallsyms]  [k] tmigr_requires_handle_remote
+     0.00%  test_gprof  [kernel.kallsyms]  [k] update_entity_lag
+     0.00%  test_gprof  [kernel.kallsyms]  [k] restore_signal_shadow_stack
+     0.00%  test_gprof  [kernel.kallsyms]  [k] do_sigaltstack.constprop.0
+     0.00%  test_gprof  [kernel.kallsyms]  [k] check_process_timers
+     0.00%  test_gprof  [kernel.kallsyms]  [k] fetch_next_timer_interrupt_remote
+     0.00%  test_gprof  [kernel.kallsyms]  [k] timerqueue_del
+     0.00%  test_gprof  [kernel.kallsyms]  [k] update_rq_clock
+     0.00%  test_gprof  [kernel.kallsyms]  [k] arch_exit_to_user_mode_prepare.isra.0
+     0.00%  test_gprof  [kernel.kallsyms]  [k] hrtimer_interrupt
+     0.00%  test_gprof  [kernel.kallsyms]  [k] task_tick_fair
+     0.00%  test_gprof  [kernel.kallsyms]  [k] __enqueue_entity
+     0.00%  test_gprof  [kernel.kallsyms]  [k] update_vdso_time_data
+     0.00%  test_gprof  [kernel.kallsyms]  [k] try_to_wake_up
+     0.00%  test_gprof  [kernel.kallsyms]  [k] __rseq_signal_deliver
+     0.00%  test_gprof  [kernel.kallsyms]  [k] _raw_spin_lock
+     0.00%  test_gprof  [kernel.kallsyms]  [k] irqentry_exit
+     0.00%  test_gprof  [kernel.kallsyms]  [k] arch_do_signal_or_restart
+     0.00%  test_gprof  [kernel.kallsyms]  [k] sig_get_ucounts
+     0.00%  test_gprof  libc.so.6          [.] 0x000000000013a5e4
+     0.00%  test_gprof  [kernel.kallsyms]  [k] fpregs_mark_activate
+     0.00%  test_gprof  [kernel.kallsyms]  [k] signal_setup_done
+     0.00%  test_gprof  [kernel.kallsyms]  [k] copy_fpstate_to_sigframe
+     0.00%  test_gprof  [kernel.kallsyms]  [k] fpu__clear_user_states
+     0.00%  test_gprof  [kernel.kallsyms]  [k] __timekeeping_advance
+     0.00%  test_gprof  [kernel.kallsyms]  [k] rcu_sched_clock_irq
+     0.00%  test_gprof  [kernel.kallsyms]  [k] __smp_call_single_queue
+     0.00%  test_gprof  [kernel.kallsyms]  [k] x64_setup_rt_frame
+     0.00%  test_gprof  [kernel.kallsyms]  [k] rcu_core
+     0.00%  test_gprof  [kernel.kallsyms]  [k] __schedule
+     0.00%  test_gprof  [kernel.kallsyms]  [k] _find_first_bit
+     0.00%  test_gprof  [kernel.kallsyms]  [k] enqueue_task_rt
+     0.00%  test_gprof  [kernel.kallsyms]  [k] mksaveddirty_shift
+     0.00%  test_gprof  [kernel.kallsyms]  [k] zap_pmd_range.isra.0
+     0.00%  test_gprof  [kernel.kallsyms]  [k] kfree
+     0.00%  test_gprof  [kernel.kallsyms]  [k] perf_event_mmap_output
+     0.00%  perf-exec   [kernel.kallsyms]  [k] perf_event_exec
+     0.00%  test_gprof  [kernel.kallsyms]  [k] perf_pmu_nop_void
+     0.00%  test_gprof  [kernel.kallsyms]  [k] nmi_restore
+     0.00%  test_gprof  [kernel.kallsyms]  [k] end_repeat_nmi
+     0.00%  test_gprof  [kernel.kallsyms]  [k] default_do_nmi
+     0.00%  perf-exec   [kernel.kallsyms]  [k] srso_safe_ret
+     0.00%  test_gprof  [kernel.kallsyms]  [k] native_write_msr
+     0.00%  perf-exec   [kernel.kallsyms]  [k] perf_event_update_userpage
+     0.00%  perf-exec   [kernel.kallsyms]  [k] srso_return_thunk
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#
