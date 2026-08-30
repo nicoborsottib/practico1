@@ -4,4 +4,6 @@ Repositorio del practico 1 para trabajo en grupo.
 
 ## Integrantes
 
-- (completar)
+Borsotti Nicolas
+Ciacci Santiago
+Leguizamon Ignacio
