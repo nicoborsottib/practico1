@@ -18,6 +18,9 @@ practico1/
     ├── Nicolas Borsotti/
     ├── Santiago Ciacci/
     └── Ignacio Leguizamon/
+└── esp32/
+    ├──README.md/
+    └──codigo.md/
 ```
 
 Cada integrante tiene su propia carpeta dentro de `timer_profiling/` con los resultados del punto 4, documentados con capturas de pantalla de cada paso del tutorial.
