@@ -1,205 +1,277 @@
-# Código — `bench_freq.ino`
+# Punto 3 — Frecuencia de CPU y tiempo de ejecución en un ESP32
 
-Sketch cargado al ESP32 para medir el tiempo de ejecución de una misma carga de trabajo a distintas frecuencias de CPU, con tres tipos de dato: `int32_t`, `float` y `double`.
-
-Compilado y cargado con `arduino-cli`:
-
-```bash
-arduino-cli compile --fqbn esp32:esp32:esp32 bench_freq
-arduino-cli upload -p /dev/ttyUSB0 --fqbn esp32:esp32:esp32 bench_freq
-arduino-cli monitor -p /dev/ttyUSB0 --config baudrate=115200 | tee resultados.csv
-```
+Código cargado al ESP32 con `arduino-cli`. Los resultados obtenidos y la
+conclusión están al final del propio código.
 
 ```cpp
-/*
- * TP Sistemas de Computación - Punto 3
- * ESP32: efecto de la frecuencia de CPU sobre el tiempo de ejecución.
+/* ===========================================================================
+ * Sistemas de Computación — TP1 — Punto 3
+ * Frecuencia de CPU y tiempo de ejecución en un ESP32
  *
- * Tres cargas de trabajo idénticas en estructura, distinto tipo de dato:
- *   - int32_t  : ALU entera
- *   - float    : FPU por hardware (el ESP32 clásico tiene FPU de simple precisión)
- *   - double   : NO hay FPU de doble precisión -> lo emula el compilador por software
+ * CONSIGNA
+ *   Ejecutar un código que demore alrededor de 10 segundos: un bucle for con
+ *   sumas de enteros, otro con floats y otro con doubles. ¿Qué sucede con el
+ *   tiempo del programa al duplicar (variar) la frecuencia? Notar que el ESP32
+ *   tiene aceleración por hardware para float.
  *
- * Se calibra la cantidad de iteraciones para que cada prueba dure ~10 s a la
- * frecuencia máxima, y después se repite exactamente el mismo trabajo a
- * frecuencias menores. La salida es CSV para graficar después.
+ * HIPÓTESIS
+ *   El ESP32 tiene un módulo de punto flotante (FPU) por hardware. Suponemos
+ *   entonces que va a resolver las sumas de float más rápido que las de
+ *   cualquier otro tipo de dato.
+ *
+ * CÓMO SE MIDE
+ *   El mismo bucle para los tres tipos, cambiando sólo la variable. Cada tipo
+ *   hace la cantidad de sumas necesaria para durar ~10 s a 240 MHz, calculada
+ *   con una regla de tres sobre una muestra corta. Después se repite ese mismo
+ *   trabajo a 240, 160 y 80 MHz, y se compara.
+ *
+ *   Dos detalles necesarios: el sumando es volatile para que el compilador no
+ *   borre el bucle, y hay que reajustar el puerto serie tras cada cambio de
+ *   frecuencia porque el UART depende del bus APB.
+ * ===========================================================================
  */
 
 #include <Arduino.h>
-#include "esp_task_wdt.h"
 
-// Puntero a función de benchmark. Tiene que estar acá arriba: el preprocesador
-// de Arduino inserta los prototipos automáticos justo después de los #include,
-// y si el typedef estuviera más abajo esos prototipos no lo conocerían.
-typedef uint64_t (*bench_fn)(uint64_t);
+// Los enums le ponen nombre a cada prueba y sirven de índice de los arrays.
+// El último elemento queda valiendo la cantidad de elementos anteriores.
+enum TipoDato   { ENTERO, FLOTANTE, DOBLE, CANTIDAD_TIPOS };
+enum Frecuencia { F240, F160, F80, CANTIDAD_FRECUENCIAS };
 
-// ---------------------------------------------------------------------------
-// Configuración
-// ---------------------------------------------------------------------------
+const int   MHZ[CANTIDAD_FRECUENCIAS]         = { 240, 160, 80 };
+const char *NOMBRE_TIPO[CANTIDAD_TIPOS]       = { "int", "float", "double" };
 
-// Frecuencias a barrer, de mayor a menor (MHz).
-// 240 / 160 / 80 vienen del PLL. 40 / 20 / 10 vienen del cristal (XTAL/n).
-static const uint32_t FREQS[]  = {240, 160, 80, 40};
-static const size_t   N_FREQS  = sizeof(FREQS) / sizeof(FREQS[0]);
+const unsigned long DURACION_OBJETIVO = 10000000UL;   // 10 segundos, en microsegundos
+const long          MUESTRA           = 1000000L;     // sumas de la muestra de calibración
 
-// Duración objetivo de cada prueba a la frecuencia máxima, en segundos.
-static const double TARGET_S = 10.0;
+// volatile obliga a leerlos de memoria en cada vuelta: es lo que impide que el
+// compilador elimine el bucle o lo reemplace por la fórmula de Gauss.
+volatile int    pasoEntero   = 1;
+volatile float  pasoFlotante = 1.0f;
+volatile double pasoDoble    = 1.0;
 
-// ---------------------------------------------------------------------------
-// Variables del benchmark
-//
-// El "paso" es volatile a propósito: obliga al compilador a releerlo de memoria
-// en cada vuelta, así no puede reemplazar el bucle por una fórmula cerrada
-// (suma de Gauss) ni borrarlo por ser código muerto. El costo extra es el mismo
-// en las tres pruebas, por lo que la comparación entre tipos sigue siendo justa.
-// ---------------------------------------------------------------------------
+long          repeticiones[CANTIDAD_TIPOS];
+unsigned long tiempos[CANTIDAD_FRECUENCIAS][CANTIDAD_TIPOS];
+double        ultimoTotal = 0;
 
-volatile int32_t step_i = 1;
-volatile float   step_f = 1.0f;
-volatile double  step_d = 1.0;
+unsigned long medirBucle(TipoDato tipo, long veces);
+long          calcularRepeticiones(TipoDato tipo);
+void          cambiarFrecuencia(Frecuencia f);
+void          imprimirTabla();
 
-// Sumideros: el resultado se usa, entonces el bucle no se optimiza afuera.
-volatile int32_t sink_i;
-volatile float   sink_f;
-volatile double  sink_d;
+// Corre el bucle de sumas del tipo pedido y devuelve cuánto tardó, en microsegundos.
+// El switch va afuera del for: adentro se ejecutaría en cada vuelta y estaríamos
+// midiéndolo a él en lugar de la suma.
+unsigned long medirBucle(TipoDato tipo, long veces) {
+  unsigned long inicio = 0, fin = 0;
+  long i;
 
-// Cada bench devuelve el tiempo en microsegundos.
-// esp_timer_get_time() cuenta a 1 MHz con un timer independiente de la CPU,
-// así que sigue midiendo bien aunque cambiemos la frecuencia del procesador.
+  switch (tipo) {
 
-uint64_t bench_int(uint64_t n) {
-  int32_t acc = 0;
-  int64_t t0 = esp_timer_get_time();
-  for (uint64_t k = 0; k < n; k++) acc += step_i;
-  int64_t t1 = esp_timer_get_time();
-  sink_i = acc;
-  return (uint64_t)(t1 - t0);
+    case ENTERO: {
+      long total = 0;
+      inicio = micros();
+      for (i = 0; i < veces; i++) {
+        total = total + pasoEntero;
+      }
+      fin = micros();
+      ultimoTotal = (double)total;
+      break;
+    }
+
+    // El total del float se congela en 16.777.216 (2^24, su límite de dígitos
+    // exactos) aunque las sumas se sigan haciendo. No afecta el tiempo medido.
+    case FLOTANTE: {
+      float total = 0.0f;
+      inicio = micros();
+      for (i = 0; i < veces; i++) {
+        total = total + pasoFlotante;
+      }
+      fin = micros();
+      ultimoTotal = (double)total;
+      break;
+    }
+
+    case DOBLE: {
+      double total = 0.0;
+      inicio = micros();
+      for (i = 0; i < veces; i++) {
+        total = total + pasoDoble;
+      }
+      fin = micros();
+      ultimoTotal = total;
+      break;
+    }
+
+    default:
+      break;
+  }
+
+  return fin - inicio;
 }
 
-uint64_t bench_float(uint64_t n) {
-  float acc = 0.0f;
-  int64_t t0 = esp_timer_get_time();
-  for (uint64_t k = 0; k < n; k++) acc += step_f;
-  int64_t t1 = esp_timer_get_time();
-  sink_f = acc;
-  return (uint64_t)(t1 - t0);
+// Calcula cuántas sumas necesita este tipo para durar DURACION_OBJETIVO, con una
+// regla de tres: si MUESTRA sumas tardaron X, para durar el objetivo hacen falta
+// MUESTRA * objetivo / X.
+long calcularRepeticiones(TipoDato tipo) {
+  unsigned long tiempoMuestra = medirBucle(tipo, MUESTRA);
+  if (tiempoMuestra == 0) {
+    tiempoMuestra = 1;
+  }
+
+  double veces = (double)MUESTRA * (double)DURACION_OBJETIVO / (double)tiempoMuestra;
+
+  Serial.printf("# %-6s : %ld sumas en %lu us  ->  usamos %.0f sumas\n",
+                NOMBRE_TIPO[tipo], MUESTRA, tiempoMuestra, veces);
+  return (long)veces;
 }
 
-uint64_t bench_double(uint64_t n) {
-  double acc = 0.0;
-  int64_t t0 = esp_timer_get_time();
-  for (uint64_t k = 0; k < n; k++) acc += step_d;
-  int64_t t1 = esp_timer_get_time();
-  sink_d = acc;
-  return (uint64_t)(t1 - t0);
-}
-
-// ---------------------------------------------------------------------------
-// Utilidades
-// ---------------------------------------------------------------------------
-
-// Calibra cuántas iteraciones hacen falta para durar TARGET_S segundos.
-uint64_t calibrar(bench_fn f, const char *nombre) {
-  const uint64_t n0 = 1000000ULL;          // muestra corta
-  uint64_t us = f(n0);
-  if (us == 0) us = 1;
-  uint64_t n = (uint64_t)((double)n0 * (TARGET_S * 1e6) / (double)us);
-  Serial.printf("# calibracion %-6s : %llu iter en %llu us -> uso N = %llu\n",
-                nombre, n0, us, n);
-  return n;
-}
-
-// Cambia la frecuencia de CPU y reajusta el UART.
-// Ojo: por debajo de 80 MHz el bus APB pasa a seguir a la CPU, y el UART
-// cuelga del APB -> hay que recalcular el divisor del baudrate.
-bool cambiar_frecuencia(uint32_t mhz) {
+// Cambia la frecuencia del procesador y recalcula el baudrate, que se desconfigura
+// al bajar de 80 MHz porque el UART sigue al bus APB.
+void cambiarFrecuencia(Frecuencia f) {
   Serial.flush();
-  bool ok = setCpuFrequencyMhz(mhz);
+  setCpuFrequencyMhz(MHZ[f]);
   Serial.updateBaudRate(115200);
   delay(50);
-  return ok;
 }
 
-void correr_una(const char *tipo, bench_fn f, uint64_t n, uint32_t mhz) {
-  esp_task_wdt_reset();                     // por las dudas, si el WDT del loop está activo
-  uint64_t us = f(n);
-  esp_task_wdt_reset();
+// Imprime las dos tablas comparativas finales a partir de la matriz de resultados.
+void imprimirTabla() {
+  Serial.println();
+  Serial.println("            TIEMPO DE CADA PRUEBA (segundos)");
+  Serial.println("  MHz  |     int    |    float   |   double");
+  Serial.println("-------+------------+------------+------------");
+  for (int f = 0; f < CANTIDAD_FRECUENCIAS; f++) {
+    Serial.printf("  %3d  |", MHZ[f]);
+    for (int t = 0; t < CANTIDAD_TIPOS; t++) {
+      Serial.printf(" %8.3f   |", tiempos[f][t] / 1000000.0);
+    }
+    Serial.println();
+  }
 
-  double seg    = us / 1e6;
-  double miters = (double)n / (double)us;   // millones de iteraciones por segundo
-
-  // CSV: freq_mhz,tipo,iteraciones,tiempo_s,Miter_s
-  Serial.printf("%lu,%s,%llu,%.3f,%.2f\n", (unsigned long)mhz, tipo, n, seg, miters);
-  Serial.flush();
-  delay(200);
+  Serial.println();
+  Serial.println("       VELOCIDAD (millones de sumas por segundo)");
+  Serial.println("  MHz  |     int    |    float   |   double");
+  Serial.println("-------+------------+------------+------------");
+  for (int f = 0; f < CANTIDAD_FRECUENCIAS; f++) {
+    Serial.printf("  %3d  |", MHZ[f]);
+    for (int t = 0; t < CANTIDAD_TIPOS; t++) {
+      Serial.printf(" %8.2f   |", (double)repeticiones[t] / (double)tiempos[f][t]);
+    }
+    Serial.println();
+  }
+  Serial.println();
 }
-
-// ---------------------------------------------------------------------------
 
 void setup() {
   Serial.begin(115200);
-  delay(2000);                              // tiempo para abrir el monitor serie
+  delay(2000);
 
   Serial.println();
-  Serial.println("# ==== ESP32: tiempo de ejecucion vs frecuencia de CPU ====");
-  Serial.printf("# chip           : %s, %d core(s), rev %d\n",
-                ESP.getChipModel(), ESP.getChipCores(), ESP.getChipRevision());
-  Serial.printf("# frec. XTAL     : %lu MHz\n", (unsigned long)getXtalFrequencyMhz());
-  Serial.printf("# frec. inicial  : %lu MHz\n", (unsigned long)getCpuFrequencyMhz());
-  Serial.printf("# sizeof: int=%d float=%d double=%d bytes\n",
+  Serial.println("# ===== Punto 3: frecuencia de CPU vs tiempo de ejecucion =====");
+  Serial.printf("# int=%d bytes, float=%d bytes, double=%d bytes\n",
                 (int)sizeof(int), (int)sizeof(float), (int)sizeof(double));
 
-  // Calibramos siempre a la frecuencia mas alta de la lista.
-  cambiar_frecuencia(FREQS[0]);
-  Serial.printf("# calibrando a %lu MHz (objetivo %.0f s por prueba)...\n",
-                (unsigned long)FREQS[0], TARGET_S);
+  // Se calibra a la frecuencia más alta y esos mismos números se usan en todas
+  // las demás: el trabajo tiene que ser idéntico para poder compararlo.
+  cambiarFrecuencia(F240);
+  Serial.printf("# Calibrando a %d MHz para durar ~%lu s por prueba:\n",
+                MHZ[F240], DURACION_OBJETIVO / 1000000UL);
 
-  uint64_t N_int    = calibrar(bench_int,    "int");
-  uint64_t N_float  = calibrar(bench_float,  "float");
-  uint64_t N_double = calibrar(bench_double, "double");
+  repeticiones[ENTERO]   = calcularRepeticiones(ENTERO);
+  repeticiones[FLOTANTE] = calcularRepeticiones(FLOTANTE);
+  repeticiones[DOBLE]    = calcularRepeticiones(DOBLE);
 
   Serial.println("#");
-  Serial.println("freq_mhz,tipo,iteraciones,tiempo_s,Miter_s");
+  Serial.println("mhz,tipo,sumas,segundos,total");
 
-  for (size_t i = 0; i < N_FREQS; i++) {
-    uint32_t f = FREQS[i];
-    if (!cambiar_frecuencia(f)) {
-      Serial.printf("# NO se pudo fijar %lu MHz, la salteo\n", (unsigned long)f);
-      continue;
+  for (int f = 0; f < CANTIDAD_FRECUENCIAS; f++) {
+    cambiarFrecuencia((Frecuencia)f);
+
+    for (int t = 0; t < CANTIDAD_TIPOS; t++) {
+      tiempos[f][t] = medirBucle((TipoDato)t, repeticiones[t]);
+
+      Serial.printf("%d,%s,%ld,%.3f,%.0f\n",
+                    MHZ[f], NOMBRE_TIPO[t], repeticiones[t],
+                    tiempos[f][t] / 1000000.0, ultimoTotal);
+      Serial.flush();
     }
-    uint32_t real = getCpuFrequencyMhz();
-    if (real != f) {
-      Serial.printf("# pedi %lu MHz y quedo en %lu MHz\n",
-                    (unsigned long)f, (unsigned long)real);
-    }
-    correr_una("int",    bench_int,    N_int,    real);
-    correr_una("float",  bench_float,  N_float,  real);
-    correr_una("double", bench_double, N_double, real);
   }
 
-  cambiar_frecuencia(FREQS[0]);
+  imprimirTabla();
+  cambiarFrecuencia(F240);
   Serial.println("# fin");
 }
 
 void loop() {
   delay(1000);
 }
-```
 
-## Salida obtenida
-
-```
-freq_mhz,tipo,iteraciones,tiempo_s,Miter_s
-240,int,125836814,10.000,12.58
-240,float,140635108,9.999,14.06
-240,double,29516635,9.967,2.96
-160,int,125836814,15.028,8.37
-160,float,140635108,15.028,9.36
-160,double,29516635,14.980,1.97
-80,int,125836814,30.227,4.16
-80,float,140635108,30.225,4.65
-80,double,29516635,30.135,0.98
-40,int,125836814,61.145,2.06
-40,float,140635108,61.146,2.30
-40,double,29516635,60.981,0.48
+/* ===========================================================================
+ * RESULTADOS OBTENIDOS
+ *
+ * # int=4 bytes, float=4 bytes, double=8 bytes
+ * # Calibrando a 240 MHz para durar ~10 s por prueba:
+ * # int    : 1000000 sumas en  54375 us  ->  usamos 183908046 sumas
+ * # float  : 1000000 sumas en  71105 us  ->  usamos 140637086 sumas
+ * # double : 1000000 sumas en 280270 us  ->  usamos  35679880 sumas
+ *
+ * mhz,tipo,sumas,segundos,total
+ * 240,int,183908045,9.999,183908045
+ * 240,float,140637085,9.999,16777216
+ * 240,double,35679880,9.963,35679880
+ * 160,int,183908045,15.027,183908045
+ * 160,float,140637085,15.028,16777216
+ * 160,double,35679880,14.975,35679880
+ * 80,int,183908045,30.223,183908045
+ * 80,float,140637085,30.225,16777216
+ * 80,double,35679880,30.122,35679880
+ *
+ *             TIEMPO DE CADA PRUEBA (segundos)
+ *   MHz  |     int    |    float   |   double
+ * -------+------------+------------+------------
+ *   240  |    9.999   |    9.999   |    9.963   |
+ *   160  |   15.027   |   15.028   |   14.975   |
+ *    80  |   30.223   |   30.225   |   30.122   |
+ *
+ *        VELOCIDAD (millones de sumas por segundo)
+ *   MHz  |     int    |    float   |   double
+ * -------+------------+------------+------------
+ *   240  |    18.39   |    14.06   |     3.58   |
+ *   160  |    12.24   |     9.36   |     2.38   |
+ *    80  |     6.09   |     4.65   |     1.18   |
+ *
+ *
+ * CONCLUSIÓN
+ *
+ * Qué pasa al variar la frecuencia (la pregunta de la consigna).
+ *   El tiempo resulta inversamente proporcional a la frecuencia. De 80 a
+ *   160 MHz se duplica el reloj y la velocidad se duplica: 6.09 -> 12.24
+ *   Msumas/s (x2.01), y el tiempo cae de 30.22 a 15.03 s. De 160 a 240 MHz
+ *   el reloj sube x1.5 y la velocidad hace x1.50. La cantidad de ciclos que
+ *   necesita el trabajo no cambia; lo único que cambia es cuánto dura cada
+ *   ciclo. Esto vale igual para los tres tipos de dato.
+ *
+ * La hipótesis se cumple sólo en parte.
+ *   Contra el double se confirma: a 240 MHz el float hace 14.06 Msumas/s
+ *   contra 3.58 del double, o sea 3.9 veces más rápido. Ahí se ve la FPU
+ *   trabajando: el float de 32 bits lo suma el hardware en una instrucción
+ *   (add.s), mientras que el double de 64 bits no tiene hardware que lo
+ *   resuelva y el compilador lo reemplaza por una rutina de software
+ *   (__adddf3) de decenas de instrucciones enteras.
+ *
+ *   Contra el int, en cambio, no se cumple: el float quedó 1.3 veces más
+ *   lento (14.06 contra 18.39 Msumas/s). La FPU no lo vuelve más rápido que
+ *   cualquier otro tipo, como suponíamos; lo que hace es ponerlo a la par de
+ *   la aritmética entera, en el mismo orden de magnitud. Que un número con
+ *   coma se acerque tanto a un entero ya es consecuencia de esa aceleración
+ *   por hardware, y se nota al compararlo con el double, que no la tiene.
+ *
+ * Detalle del total del float.
+ *   Los tres tipos hacen todas sus sumas, pero el total del float queda en
+ *   16777216 (2^24) porque es el entero más grande que puede representar con
+ *   exactitud; de ahí en adelante sumarle 1 no lo cambia. No afecta los
+ *   tiempos medidos.
+ * ===========================================================================
+ */
 ```
